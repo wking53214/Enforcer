@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tack-enforcer"
+version = "0.1.0"
+description = "A fail-closed, action-bound authorization gate prototype for the STACK / One Ring investigation."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "≡TACK" }]
+keywords = ["authorization", "governance", "policy-enforcement", "fail-closed"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Security",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
