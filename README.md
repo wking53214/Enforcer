@@ -90,6 +90,10 @@ Every allow also requires a configured `AuthorizationRevalidator` to return an a
 
 `execute()` performs revalidation within its gate call immediately before replay consumption and callback invocation. A status may change after the check and before or during the external effect; this residual TOCTOU window is not eliminated by the local library. `authorize()` remains a permission decision that consumes the grant, not evidence that an action was attempted or completed.
 
+## Optional CNS integration
+
+The [CNS integration contract](docs/CNS_INTEGRATION.md) documents the optional ALPHA and OMEGA result adapters. The CNS package remains a caller-supplied optional dependency; Enforcer does not add a hard dependency or treat CNS gate results as authorization grants.
+
 ## Project One Ring relationship
 
 The RACE investigation prompt is preserved at [`docs/PROJECT_ONE_RING_RACE_PROMPT.md`](docs/PROJECT_ONE_RING_RACE_PROMPT.md). The intended order remains: inspect the Constitution and real repositories, map the actual action paths, identify existing enforcement, and only then determine whether this prototype should be integrated, adapted, separated, or rejected.
@@ -98,4 +102,4 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/THREAT_MODEL.md`](doc
 
 ## Human approval boundary
 
-This build creates local files only. It does not push, merge, publish, or modify the GitHub repository. No constitutional change, trusted issuer, protected policy, or production deployment is authorized by this project scaffold.
+Local source and test commands operate on this checkout. Repository publication does not authorize a production deployment, select a trusted issuer, establish protected-policy authority, or make constitutional changes.
