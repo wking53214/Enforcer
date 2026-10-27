@@ -246,10 +246,14 @@ class Enforcer:
     ) -> ExecutionOutcome[T]:
         """Invoke this callback only after `authorize` returns ALLOW.
 
-        Any exception raised by `action` propagates. The grant remains consumed:
-        retry requires a new independently issued grant. Callers must not treat
-        this helper as proof that alternate paths to the same action are gated.
+        A non-callable `action` raises `TypeError` before authorization or
+        replay consumption. Any exception raised by a valid action propagates;
+        the grant remains consumed: retry requires a new independently issued
+        grant. Callers must not treat this helper as proof that alternate paths
+        to the same action are gated.
         """
+        if not callable(action):
+            raise TypeError("action must be callable")
         decision = self.authorize(request, proof)
         if decision.status is not DecisionStatus.ALLOW:
             return ExecutionOutcome(decision=decision, action_invoked=False)
