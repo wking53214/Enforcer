@@ -23,10 +23,17 @@ class ProofVerifier(Protocol):
     Implementations MUST verify, at minimum:
     - the proof's cryptographic integrity and issuer identity;
     - that the issuer is trusted for the requested class of authorization;
-    - revocation/status policy, if the chosen credential system supports it;
     - canonical decoding without accepting ambiguous or duplicate fields.
 
-    The gate subsequently checks exact request binding, time limits, and replay.
+    For schema v1, returned claims MUST include the complete action-envelope
+    scope (schema version, subject, canonical action ID, target type and stable
+    target ID, evidence digest, request ID, parameter digest, and policy
+    version). The gate checks each field against the caller's envelope, then
+    checks time limits, revalidation freshness, and replay. Current grant and
+    policy status is checked separately by `AuthorizationRevalidator`;
+    this verifier alone does not establish current status. Implementations
+    must reject missing,
+    duplicate, unknown, or ambiguously decoded proof fields.
     The protocol itself provides no security; a permissive or forged adapter
     defeats the gate. Keep verifier implementation and trust material outside
     untrusted plugin/model-controlled paths.
