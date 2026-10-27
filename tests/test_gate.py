@@ -348,6 +348,17 @@ class GateTests(unittest.TestCase):
         self.assertFalse(outcome.action_invoked)
         self.assertEqual(called, [])
 
+    def test_non_callable_action_is_rejected_before_consuming_proof(self):
+        with self.assertRaisesRegex(TypeError, "^action must be callable$"):
+            self.gate.execute(request(), self.proof, object())
+
+        called = []
+        outcome = self.gate.execute(request(), self.proof, lambda: called.append("ran") or "done")
+        self.assertEqual(outcome.decision.status, DecisionStatus.ALLOW)
+        self.assertTrue(outcome.action_invoked)
+        self.assertEqual(outcome.value, "done")
+        self.assertEqual(called, ["ran"])
+
     def test_envelope_mismatch_never_calls_action(self):
         self.verifier.mapping[self.proof] = claims(policy_version="other-policy")
         called = []
@@ -437,6 +448,22 @@ class GateTests(unittest.TestCase):
             finally:
                 for store in stores:
                     store.close()
+
+    def test_replay_store_persists_consumption_across_restart(self):
+        with TemporaryDirectory() as folder:
+            db_path = Path(folder) / "persistent-replay.sqlite3"
+            first = SQLiteReplayStore(db_path)
+            try:
+                self.assertTrue(first.consume("issuer-A", "nonce-1", "request-1"))
+            finally:
+                first.close()
+
+            reopened = SQLiteReplayStore(db_path)
+            try:
+                self.assertFalse(reopened.consume("issuer-A", "nonce-1", "request-1"))
+                self.assertTrue(reopened.consume("issuer-A", "nonce-2", "request-2"))
+            finally:
+                reopened.close()
 
     def test_replay_store_failure_denies(self):
         class BrokenStore:
