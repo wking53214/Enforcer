@@ -24,12 +24,15 @@ These are unit-level tests against the prototype, not evidence that real-world c
 
 - Compromised issuer, identity provider, signing key, verifier, Python process, host, or database administrator.
 - Unsafe or misconfigured `ProofVerifier` that returns untrusted claims.
+- Unsafe, compromised, or misconfigured authorization revalidator; this is a high-trust seam and the test fake proves no authority.
 - A direct alternate action path that bypasses `execute`.
 - Replay across restarts when the in-memory default store is used, multi-host race/replay behavior unless a persistent shared store is supplied, and replay-store growth/retention operations.
 - Truth, completeness, freshness, or relevance of evidence referenced by the proof.
 - Authority disputes between humans, laws, organizational policy, and constitutional articles.
 - Malicious changes to source code, tests, CI, workflow permissions, deployment configuration, or trust-root configuration.
 - Availability attacks and operational recovery beyond fail-closed denial at the local gate.
+
+The default authorization revalidator denies because no trusted current-policy or revocation source has been selected. Configured status is accepted only when bound to the exact envelope digest and policy version, checked within the configured maximum age, and still within its declared validity interval. Status-source failure is fail-closed. This bounds stale responses but does not eliminate a status change after checking and before an external effect.
 
 ## Security semantics
 

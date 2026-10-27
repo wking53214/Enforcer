@@ -7,6 +7,7 @@ must route each consequential action through the gate.
 
 from .gate import Enforcer, GatePolicy
 from .models import (
+    ActionEnvelope,
     ActionRequest,
     Decision,
     DecisionStatus,
@@ -14,10 +15,20 @@ from .models import (
     GrantClaims,
 )
 from .proofs import ProofVerificationError, ProofVerifier, RejectAllProofVerifier
+from .revalidation import (
+    AuthorizationRevalidator,
+    AuthorizationStatus,
+    AuthorizationStatusValue,
+    RejectingAuthorizationRevalidator,
+)
 from .replay import ReplayStore, SQLiteReplayStore
 
 __all__ = [
+    "ActionEnvelope",
     "ActionRequest",
+    "AuthorizationRevalidator",
+    "AuthorizationStatus",
+    "AuthorizationStatusValue",
     "Decision",
     "DecisionStatus",
     "Enforcer",
@@ -27,6 +38,7 @@ __all__ = [
     "ProofVerificationError",
     "ProofVerifier",
     "RejectAllProofVerifier",
+    "RejectingAuthorizationRevalidator",
     "ReplayStore",
     "SQLiteReplayStore",
 ]
