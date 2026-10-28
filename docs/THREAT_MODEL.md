@@ -41,6 +41,7 @@ The default authorization revalidator denies because no trusted current-policy o
 - A syntactically valid grant is not necessarily a grant from a trusted or sufficiently authorized issuer; the verifier must check that distinction.
 - An `ALLOW` result does not prove that an independent policy decision was correct.
 - A test pass does not prove this gate sits on the real action path.
+- Replay consumption is the last check before `ALLOW` and runs before the action callback. A denied request never touches the replay store, so a transient denial does not burn the grant; a callback that fails after `ALLOW` leaves the grant consumed, and a retry needs a fresh grant.
 - Denial caused by missing verifier or replay-store failure is intentional fail-closed behavior, not a successful authorization.
 
 ## Required follow-up before any production claim

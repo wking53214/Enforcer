@@ -68,6 +68,19 @@ class FakeRevalidator:
         )
 
 
+class CountingStore(SQLiteReplayStore):
+    """In-memory store that counts consume calls, so a test can tell one
+    consumption from two and can prove a denied request never reached it."""
+
+    def __init__(self):
+        super().__init__(":memory:")
+        self.calls = 0
+
+    def consume(self, issuer_id, nonce, request_id):
+        self.calls += 1
+        return super().consume(issuer_id, nonce, request_id)
+
+
 def request(**changes) -> ActionRequest:
     values = {
         "subject_id": "human:operator-17",
@@ -122,6 +135,20 @@ class GateTests(unittest.TestCase):
             result = gate.authorize(request(), self.proof)
             self.assertEqual(result.status, DecisionStatus.DENY)
             self.assertEqual(result.reason_code, "PROOF_INVALID")
+        finally:
+            gate.close()
+
+    def test_configured_verifier_requires_explicit_replay_store(self):
+        # Silently falling back to an in-memory store would lose replay state on
+        # restart while a real verifier is allowing grants. Fail closed instead.
+        with self.assertRaisesRegex(ValueError, "explicit replay_store"):
+            Enforcer(verifier=self.verifier, revalidator=FakeRevalidator(), clock=lambda: NOW)
+        with self.assertRaisesRegex(ValueError, "explicit replay_store"):
+            Enforcer(verifier=self.verifier, clock=lambda: NOW)
+        # The reject-all default still constructs without a store and still denies.
+        gate = Enforcer(clock=lambda: NOW)
+        try:
+            self.assertEqual(gate.authorize(request(), self.proof).reason_code, "PROOF_INVALID")
         finally:
             gate.close()
 
@@ -422,6 +449,37 @@ class GateTests(unittest.TestCase):
         retry = self.gate.authorize(request(), self.proof)
         self.assertEqual(retry.reason_code, "GRANT_REPLAYED")
 
+    def test_denied_request_does_not_consume_nonce(self):
+        store = CountingStore()
+        revoked = AuthorizationStatus(
+            status=AuthorizationStatusValue.REVOKED,
+            envelope_sha256=request().envelope_sha256,
+            policy_version=request().policy_version,
+            checked_at=NOW,
+            valid_until=FRESH_UNTIL,
+        )
+        flaky = FakeRevalidator(status=revoked)
+        gate = Enforcer(verifier=self.verifier, revalidator=flaky, replay_store=store, clock=lambda: NOW)
+        self.assertEqual(gate.authorize(request(), self.proof).reason_code, "GRANT_REVOKED")
+        flaky.fail, flaky.status = True, None
+        self.assertEqual(gate.authorize(request(), self.proof).reason_code, "AUTHORITY_REVALIDATION_ERROR")
+        self.assertEqual(store.calls, 0)
+        flaky.fail = False
+        self.assertEqual(gate.authorize(request(), self.proof).status, DecisionStatus.ALLOW)
+        self.assertEqual(store.calls, 1)
+
+    def test_callback_exception_consumes_exactly_once(self):
+        def broken_action():
+            raise RuntimeError("action failure")
+
+        store = CountingStore()
+        gate = Enforcer(verifier=self.verifier, revalidator=FakeRevalidator(), replay_store=store, clock=lambda: NOW)
+        with self.assertRaisesRegex(RuntimeError, "action failure"):
+            gate.execute(request(), self.proof, broken_action)
+        self.assertEqual(store.calls, 1)
+        self.assertEqual(gate.authorize(request(), self.proof).reason_code, "GRANT_REPLAYED")
+        self.assertEqual(store.calls, 2)
+
     def test_naive_datetime_claims_rejected(self):
         with self.assertRaisesRegex(ValueError, "timezone-aware"):
             claims(issued_at=datetime(2026, 10, 26, 19, 0))
@@ -475,6 +533,67 @@ class GateTests(unittest.TestCase):
         )
         result = self.gate.authorize(request(), self.proof)
         self.assertEqual(result.reason_code, "REPLAY_STORE_ERROR")
+
+    def test_verifier_returning_non_claims_object_denies_without_calling_action(self):
+        self.verifier.mapping[self.proof] = {"subject_id": "human:operator-17", "action": "deploy:release"}
+        called = []
+        outcome = self.gate.execute(request(), self.proof, lambda: called.append("ran"))
+        self.assertEqual(outcome.decision.status, DecisionStatus.DENY)
+        self.assertEqual(outcome.decision.reason_code, "CLAIMS_INVALID")
+        self.assertFalse(outcome.action_invoked)
+        self.assertEqual(called, [])
+
+    def test_verifier_without_stable_identifier_denies_without_calling_action(self):
+        class UnidentifiedVerifier(FakeVerifier):
+            verifier_id = ""
+
+        self.gate = Enforcer(
+            verifier=UnidentifiedVerifier({self.proof: claims()}),
+            revalidator=FakeRevalidator(),
+            replay_store=SQLiteReplayStore(":memory:"),
+            clock=lambda: NOW,
+        )
+        called = []
+        outcome = self.gate.execute(request(), self.proof, lambda: called.append("ran"))
+        self.assertEqual(outcome.decision.status, DecisionStatus.DENY)
+        self.assertEqual(outcome.decision.reason_code, "CLAIMS_INVALID")
+        self.assertFalse(outcome.action_invoked)
+        self.assertEqual(called, [])
+
+    def test_empty_proof_bytes_denies_as_missing(self):
+        result = self.gate.authorize(request(), b"")
+        self.assertEqual(result.status, DecisionStatus.DENY)
+        self.assertEqual(result.reason_code, "PROOF_MISSING")
+
+    def test_malformed_status_or_unidentified_revalidator_denies(self):
+        class BlankIdRevalidator(FakeRevalidator):
+            revalidator_id = "   "
+
+        naive_status = AuthorizationStatus(
+            status=AuthorizationStatusValue.CURRENT,
+            envelope_sha256=request().envelope_sha256,
+            policy_version=request().policy_version,
+            checked_at=NOW.replace(tzinfo=None),
+            valid_until=FRESH_UNTIL.replace(tzinfo=None),
+        )
+        revalidators = (
+            ("plain string status", FakeRevalidator(status="CURRENT")),
+            ("blank revalidator_id", BlankIdRevalidator()),
+            ("naive status timestamps", FakeRevalidator(status=naive_status)),
+        )
+        for label, revalidator in revalidators:
+            with self.subTest(case=label):
+                self.gate = Enforcer(
+                    verifier=self.verifier,
+                    revalidator=revalidator,
+                    replay_store=SQLiteReplayStore(":memory:"),
+                    clock=lambda: NOW,
+                )
+                called = []
+                outcome = self.gate.execute(request(), self.proof, lambda: called.append("ran"))
+                self.assertEqual(outcome.decision.reason_code, "AUTHORITY_STATUS_INVALID")
+                self.assertFalse(outcome.action_invoked)
+                self.assertEqual(called, [])
 
 
 if __name__ == "__main__":

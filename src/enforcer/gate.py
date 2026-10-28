@@ -72,6 +72,10 @@ class Enforcer:
         self._revalidator = (
             revalidator if revalidator is not None else RejectingAuthorizationRevalidator()
         )
+        if replay_store is None and verifier is not None:
+            # An implicit in-memory store would silently lose replay state across
+            # restarts while a configured verifier is allowing grants.
+            raise ValueError("an explicit replay_store is required when a verifier is configured")
         self._replay_store = replay_store if replay_store is not None else SQLiteReplayStore()
         self._policy = policy if policy is not None else GatePolicy()
         self._clock = clock
@@ -101,6 +105,10 @@ class Enforcer:
             return self._deny(
                 request, now, "CLAIMS_INVALID", "The verifier returned an invalid claims object.", digest,
                 verifier_id,
+            )
+        if not isinstance(verifier_id, str) or not verifier_id.strip():
+            return self._deny(
+                request, now, "CLAIMS_INVALID", "The verifier has no stable identifier.", digest,
             )
 
         expected = {

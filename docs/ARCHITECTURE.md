@@ -40,7 +40,7 @@ All diagram elements above are intended interfaces in this prototype. The diagra
 ## Design limits / unresolved choices
 
 - No production verifier, key format, identity provider, issuer registry, revocation mechanism, or trust-anchor governance is selected.
-- The default SQLite store is in-memory and loses replay history on process exit; a file-backed instance persists locally. Neither local mode coordinates replay protection across hosts.
+- The default SQLite store is in-memory and loses replay history on process exit; it is used only when no verifier is configured, since a configured verifier requires an explicit `replay_store`. A file-backed instance persists locally. Neither local mode coordinates replay protection across hosts.
 - Replay records are not currently pruned. Retention and cleanup require a policy that does not allow any valid grant to become reusable.
 - This library cannot prevent callers from invoking the same action through an unguarded alternate path.
 - The current `Decision` is a local function result, not an independently signed, tamper-evident event ledger.
