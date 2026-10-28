@@ -499,6 +499,23 @@ class GateTests(unittest.TestCase):
         self.assertFalse(outcome.action_invoked)
         self.assertEqual(called, [])
 
+    def test_verifier_without_stable_identifier_denies_without_calling_action(self):
+        class UnidentifiedVerifier(FakeVerifier):
+            verifier_id = ""
+
+        self.gate = Enforcer(
+            verifier=UnidentifiedVerifier({self.proof: claims()}),
+            revalidator=FakeRevalidator(),
+            replay_store=SQLiteReplayStore(":memory:"),
+            clock=lambda: NOW,
+        )
+        called = []
+        outcome = self.gate.execute(request(), self.proof, lambda: called.append("ran"))
+        self.assertEqual(outcome.decision.status, DecisionStatus.DENY)
+        self.assertEqual(outcome.decision.reason_code, "CLAIMS_INVALID")
+        self.assertFalse(outcome.action_invoked)
+        self.assertEqual(called, [])
+
     def test_empty_proof_bytes_denies_as_missing(self):
         result = self.gate.authorize(request(), b"")
         self.assertEqual(result.status, DecisionStatus.DENY)

@@ -106,6 +106,10 @@ class Enforcer:
                 request, now, "CLAIMS_INVALID", "The verifier returned an invalid claims object.", digest,
                 verifier_id,
             )
+        if not isinstance(verifier_id, str) or not verifier_id.strip():
+            return self._deny(
+                request, now, "CLAIMS_INVALID", "The verifier has no stable identifier.", digest,
+            )
 
         expected = {
             "schema_version": request.schema_version,
