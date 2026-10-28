@@ -13,3 +13,5 @@ Run tests with:
 ```bash
 PYTHONPATH=src python -m unittest discover -s tests -v
 ```
+
+CI runs the CNS integration tests in a separate `cns` job with `ENFORCER_REQUIRE_CNS=1`, so a missing `cns` fails the run and those tests cannot skip. Local runs without CNS on the path and without the variable still skip them, so a standard-library-only contributor can run the suite.
