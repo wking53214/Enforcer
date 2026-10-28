@@ -476,6 +476,50 @@ class GateTests(unittest.TestCase):
         result = self.gate.authorize(request(), self.proof)
         self.assertEqual(result.reason_code, "REPLAY_STORE_ERROR")
 
+    def test_verifier_returning_non_claims_object_denies_without_calling_action(self):
+        self.verifier.mapping[self.proof] = {"subject_id": "human:operator-17", "action": "deploy:release"}
+        called = []
+        outcome = self.gate.execute(request(), self.proof, lambda: called.append("ran"))
+        self.assertEqual(outcome.decision.status, DecisionStatus.DENY)
+        self.assertEqual(outcome.decision.reason_code, "CLAIMS_INVALID")
+        self.assertFalse(outcome.action_invoked)
+        self.assertEqual(called, [])
+
+    def test_empty_proof_bytes_denies_as_missing(self):
+        result = self.gate.authorize(request(), b"")
+        self.assertEqual(result.status, DecisionStatus.DENY)
+        self.assertEqual(result.reason_code, "PROOF_MISSING")
+
+    def test_malformed_status_or_unidentified_revalidator_denies(self):
+        class BlankIdRevalidator(FakeRevalidator):
+            revalidator_id = "   "
+
+        naive_status = AuthorizationStatus(
+            status=AuthorizationStatusValue.CURRENT,
+            envelope_sha256=request().envelope_sha256,
+            policy_version=request().policy_version,
+            checked_at=NOW.replace(tzinfo=None),
+            valid_until=FRESH_UNTIL.replace(tzinfo=None),
+        )
+        revalidators = (
+            ("plain string status", FakeRevalidator(status="CURRENT")),
+            ("blank revalidator_id", BlankIdRevalidator()),
+            ("naive status timestamps", FakeRevalidator(status=naive_status)),
+        )
+        for label, revalidator in revalidators:
+            with self.subTest(case=label):
+                self.gate = Enforcer(
+                    verifier=self.verifier,
+                    revalidator=revalidator,
+                    replay_store=SQLiteReplayStore(":memory:"),
+                    clock=lambda: NOW,
+                )
+                called = []
+                outcome = self.gate.execute(request(), self.proof, lambda: called.append("ran"))
+                self.assertEqual(outcome.decision.reason_code, "AUTHORITY_STATUS_INVALID")
+                self.assertFalse(outcome.action_invoked)
+                self.assertEqual(called, [])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,12 +6,13 @@ from datetime import datetime, timedelta, timezone
 
 try:
     from cns.gate import GateOutcome, GatePosition, GateResult, resolve, subject_digest
-    from enforcer.cns_integration import execute_with_cns
+    from enforcer.cns_integration import _envelope_content, execute_with_cns
 except ImportError as exc:  # CNS is an optional integration dependency.
     _CNS_IMPORT_ERROR = exc
     GateOutcome = GatePosition = GateResult = None
     resolve = None
     subject_digest = None
+    _envelope_content = None
 else:
     _CNS_IMPORT_ERROR = None
 
@@ -214,6 +215,13 @@ class CNSIntegrationTests(unittest.TestCase):
             )
         # OMEGA runs after the effect; rejecting its malformed result cannot undo it.
         self.assertEqual(called, ["ran"])
+
+    def test_cns_subject_digest_is_not_the_native_envelope_digest(self):
+        # The two digests cover the same fields under different canonical forms.
+        # A consumer must not substitute one for the other when binding results.
+        cns_digest = subject_digest(_envelope_content(self.envelope))
+        self.assertEqual(len(cns_digest), 64)
+        self.assertNotEqual(self.envelope.envelope_sha256, cns_digest)
 
 
 if __name__ == "__main__":
