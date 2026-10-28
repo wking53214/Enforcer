@@ -68,6 +68,19 @@ class FakeRevalidator:
         )
 
 
+class CountingStore(SQLiteReplayStore):
+    """In-memory store that counts consume calls, so a test can tell one
+    consumption from two and can prove a denied request never reached it."""
+
+    def __init__(self):
+        super().__init__(":memory:")
+        self.calls = 0
+
+    def consume(self, issuer_id, nonce, request_id):
+        self.calls += 1
+        return super().consume(issuer_id, nonce, request_id)
+
+
 def request(**changes) -> ActionRequest:
     values = {
         "subject_id": "human:operator-17",
@@ -435,6 +448,37 @@ class GateTests(unittest.TestCase):
             self.gate.execute(request(), self.proof, broken_action)
         retry = self.gate.authorize(request(), self.proof)
         self.assertEqual(retry.reason_code, "GRANT_REPLAYED")
+
+    def test_denied_request_does_not_consume_nonce(self):
+        store = CountingStore()
+        revoked = AuthorizationStatus(
+            status=AuthorizationStatusValue.REVOKED,
+            envelope_sha256=request().envelope_sha256,
+            policy_version=request().policy_version,
+            checked_at=NOW,
+            valid_until=FRESH_UNTIL,
+        )
+        flaky = FakeRevalidator(status=revoked)
+        gate = Enforcer(verifier=self.verifier, revalidator=flaky, replay_store=store, clock=lambda: NOW)
+        self.assertEqual(gate.authorize(request(), self.proof).reason_code, "GRANT_REVOKED")
+        flaky.fail, flaky.status = True, None
+        self.assertEqual(gate.authorize(request(), self.proof).reason_code, "AUTHORITY_REVALIDATION_ERROR")
+        self.assertEqual(store.calls, 0)
+        flaky.fail = False
+        self.assertEqual(gate.authorize(request(), self.proof).status, DecisionStatus.ALLOW)
+        self.assertEqual(store.calls, 1)
+
+    def test_callback_exception_consumes_exactly_once(self):
+        def broken_action():
+            raise RuntimeError("action failure")
+
+        store = CountingStore()
+        gate = Enforcer(verifier=self.verifier, revalidator=FakeRevalidator(), replay_store=store, clock=lambda: NOW)
+        with self.assertRaisesRegex(RuntimeError, "action failure"):
+            gate.execute(request(), self.proof, broken_action)
+        self.assertEqual(store.calls, 1)
+        self.assertEqual(gate.authorize(request(), self.proof).reason_code, "GRANT_REPLAYED")
+        self.assertEqual(store.calls, 2)
 
     def test_naive_datetime_claims_rejected(self):
         with self.assertRaisesRegex(ValueError, "timezone-aware"):
