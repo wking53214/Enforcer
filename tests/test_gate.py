@@ -125,6 +125,20 @@ class GateTests(unittest.TestCase):
         finally:
             gate.close()
 
+    def test_configured_verifier_requires_explicit_replay_store(self):
+        # Silently falling back to an in-memory store would lose replay state on
+        # restart while a real verifier is allowing grants. Fail closed instead.
+        with self.assertRaisesRegex(ValueError, "explicit replay_store"):
+            Enforcer(verifier=self.verifier, revalidator=FakeRevalidator(), clock=lambda: NOW)
+        with self.assertRaisesRegex(ValueError, "explicit replay_store"):
+            Enforcer(verifier=self.verifier, clock=lambda: NOW)
+        # The reject-all default still constructs without a store and still denies.
+        gate = Enforcer(clock=lambda: NOW)
+        try:
+            self.assertEqual(gate.authorize(request(), self.proof).reason_code, "PROOF_INVALID")
+        finally:
+            gate.close()
+
     def test_default_revalidator_denies(self):
         gate = Enforcer(
             verifier=self.verifier, replay_store=SQLiteReplayStore(":memory:"), clock=lambda: NOW

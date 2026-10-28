@@ -23,6 +23,7 @@ from enforcer import (
     Enforcer,
     GrantClaims,
     ProofVerificationError,
+    SQLiteReplayStore,
 )
 
 
@@ -114,6 +115,7 @@ class CNSIntegrationTests(unittest.TestCase):
         self.enforcer = Enforcer(
             verifier=TestOnlyVerifier(),
             revalidator=TestOnlyRevalidator(),
+            replay_store=SQLiteReplayStore(":memory:"),
             clock=lambda: NOW,
         )
 
