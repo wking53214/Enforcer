@@ -22,3 +22,38 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Run standard-library unit tests
         run: PYTHONPATH=src python -m unittest discover -s tests -v
+
+  cns:
+    # The optional CNS integration, with CNS installed at the commit pinned in
+    # docs/CNS_INTEGRATION.md. ENFORCER_REQUIRE_CNS=1 turns a missing cns into
+    # a failure, and the last step fails on any skipped test, so these tests
+    # cannot silently skip here. The unit-tests job above keeps proving the
+    # standard-library-only path.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install CNS at the pinned commit
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cns @ git+https://github.com/wking53214/CNS.git@1b86c8280ca426c164f7768e4ef527d794ff7992"
+          python -m pip show cns
+      - name: Run unit tests with CNS required
+        env:
+          ENFORCER_REQUIRE_CNS: "1"
+          PYTHONPATH: src
+        run: |
+          set -o pipefail
+          python -m unittest discover -s tests -v 2>&1 | tee unittest.log
+      - name: Fail if any test was skipped
+        run: |
+          if grep -E '\.\.\. skipped |skipped=[0-9]' unittest.log; then
+            echo "A test was skipped in the CNS job." >&2
+            exit 1
+          fi

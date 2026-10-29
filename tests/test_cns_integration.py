@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import unittest
 from datetime import datetime, timedelta, timezone
 
@@ -8,6 +9,8 @@ try:
     from cns.gate import GateOutcome, GatePosition, GateResult, resolve, subject_digest
     from enforcer.cns_integration import _envelope_content, execute_with_cns
 except ImportError as exc:  # CNS is an optional integration dependency.
+    if os.environ.get("ENFORCER_REQUIRE_CNS") == "1":  # CI: a missing cns is a failure, not a skip
+        raise
     _CNS_IMPORT_ERROR = exc
     GateOutcome = GatePosition = GateResult = None
     resolve = None

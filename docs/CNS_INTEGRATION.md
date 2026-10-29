@@ -45,3 +45,8 @@ These functions are integration seams, not evidence that an Enforcer action
 consumer or a complete CNS gate chain exists in this repository. The OMEGA
 observer and gate must be connected to a real consumer and independently
 observed outcome before making path-coverage or outcome-integrity claims.
+
+CI runs the CNS tests in a `cns` job that installs the pinned commit above and
+sets `ENFORCER_REQUIRE_CNS=1`, so a missing `cns` fails the run and those tests
+cannot skip; the job also fails if any test is skipped. Standard-library-only
+local runs, without CNS and without the variable, still skip them.
