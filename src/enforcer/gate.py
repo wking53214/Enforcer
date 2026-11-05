@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Callable, TypeVar
+from typing import Any, Callable, TypeVar
 
 from .models import (
     ActionRequest,
@@ -79,6 +80,12 @@ class Enforcer:
         self._replay_store = replay_store if replay_store is not None else SQLiteReplayStore()
         self._policy = policy if policy is not None else GatePolicy()
         self._clock = clock
+        # A store that declares an ``expires_at`` parameter is told when the grant expires, which is
+        # what lets it prune safely. Stores written for 0.1.0 keep their three-argument consume.
+        try:
+            self._store_takes_expiry = "expires_at" in inspect.signature(self._replay_store.consume).parameters
+        except (TypeError, ValueError):
+            self._store_takes_expiry = False
 
     def authorize(self, request: ActionRequest, proof: bytes | None) -> Decision:
         """Return ALLOW only for a verified, exact-scope, current, unused proof."""
@@ -218,7 +225,12 @@ class Enforcer:
             )
 
         try:
-            consumed = self._replay_store.consume(claims.issuer_id, claims.nonce, claims.request_id)
+            if self._store_takes_expiry:
+                consumed = self._replay_store.consume(
+                    claims.issuer_id, claims.nonce, claims.request_id, expires_at=claims.expires_at
+                )
+            else:
+                consumed = self._replay_store.consume(claims.issuer_id, claims.nonce, claims.request_id)
         except Exception:
             return self._deny(
                 request,
@@ -251,8 +263,16 @@ class Enforcer:
         request: ActionRequest,
         proof: bytes | None,
         action: Callable[[], T],
+        *,
+        on_allow: Callable[[Decision], None] | None = None,
     ) -> ExecutionOutcome[T]:
         """Invoke this callback only after `authorize` returns ALLOW.
+
+        `on_allow`, if given, is called with the ALLOW `Decision` after the grant is consumed and
+        before the callback. It exists so a caller can record the decision even when the callback
+        later raises, in which case no `ExecutionOutcome` is returned. It is not a veto: the grant
+        is already spent. If it raises, the exception propagates and the callback is NOT invoked
+        (fail closed), and the grant stays consumed.
 
         A non-callable `action` raises `TypeError` before authorization or
         replay consumption. Any exception raised by a valid action propagates;
@@ -265,8 +285,43 @@ class Enforcer:
         decision = self.authorize(request, proof)
         if decision.status is not DecisionStatus.ALLOW:
             return ExecutionOutcome(decision=decision, action_invoked=False)
+        if on_allow is not None:
+            on_allow(decision)
         value = action()
         return ExecutionOutcome(decision=decision, action_invoked=True, value=value)
+
+    def describe(self) -> dict[str, Any]:
+        """A read-only description of how this gate is configured, for deployment checks.
+
+        Reports identifiers and limits, never secrets. A value that cannot be read is None, so a
+        caller can tell "unknown" from a real answer and must not treat None as configured.
+        """
+
+        def read(obj: Any, name: str) -> Any:
+            try:
+                return getattr(obj, name)
+            except Exception:
+                return None
+
+        store_info: Any = None
+        describe = getattr(self._replay_store, "describe", None)
+        if callable(describe):
+            try:
+                store_info = describe()
+            except Exception:
+                store_info = None
+        return {
+            "verifier_id": read(self._verifier, "verifier_id"),
+            "revalidator_id": read(self._revalidator, "revalidator_id"),
+            "replay_store_type": type(self._replay_store).__name__,
+            "replay_store": store_info,
+            "records_expiry": self._store_takes_expiry,
+            "policy": {
+                "max_grant_lifetime_seconds": self._policy.max_grant_lifetime.total_seconds(),
+                "allowed_clock_skew_seconds": self._policy.allowed_clock_skew.total_seconds(),
+                "max_revalidation_age_seconds": self._policy.max_revalidation_age.total_seconds(),
+            },
+        }
 
     def close(self) -> None:
         """Close the replay store if it exposes a close method."""
