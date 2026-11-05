@@ -26,7 +26,7 @@ These are unit-level tests against the prototype, not evidence that real-world c
 - Unsafe or misconfigured `ProofVerifier` that returns untrusted claims.
 - Unsafe, compromised, or misconfigured authorization revalidator; this is a high-trust seam and the test fake proves no authority.
 - A direct alternate action path that bypasses `execute`.
-- Replay across restarts when the in-memory default store is used, multi-host race/replay behavior unless a persistent shared store is supplied, and replay-store growth/retention operations.
+- Replay across restarts when the in-memory default store is used, multi-host race/replay behavior unless a persistent shared store is supplied, and replay-store growth (use `SQLiteReplayStore.prune`, which removes only records of already-expired grants; it is not run automatically).
 - Truth, completeness, freshness, or relevance of evidence referenced by the proof.
 - Authority disputes between humans, laws, organizational policy, and constitutional articles.
 - Malicious changes to source code, tests, CI, workflow permissions, deployment configuration, or trust-root configuration.
