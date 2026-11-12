@@ -290,6 +290,21 @@ class Enforcer:
         value = action()
         return ExecutionOutcome(decision=decision, action_invoked=True, value=value)
 
+    @property
+    def verifier(self) -> ProofVerifier:
+        """The proof verifier this gate uses. Read-only; for deployment checks and callers that must re-verify."""
+        return self._verifier
+
+    @property
+    def revalidator(self) -> AuthorizationRevalidator:
+        """The status adapter this gate uses. Read-only."""
+        return self._revalidator
+
+    @property
+    def replay_store(self) -> ReplayStore:
+        """The replay store this gate uses. Read-only."""
+        return self._replay_store
+
     def describe(self) -> dict[str, Any]:
         """A read-only description of how this gate is configured, for deployment checks.
 
