@@ -96,6 +96,10 @@ Every allow also requires a configured `AuthorizationRevalidator` to return an a
 
 `Enforcer.describe()` returns identifiers and limits for deployment checks: the verifier and revalidator ids, the replay store's type and its own `describe()`, whether it records expiry, and the policy limits. A value that cannot be read is `None`, never a made-up answer. It is a description, not an attestation: a custom adapter can report whatever it likes.
 
+## Reading the adapters (0.1.2)
+
+`Enforcer.verifier`, `Enforcer.revalidator` and `Enforcer.replay_store` return the adapters the gate was built with. They are read-only properties (assigning to one raises `AttributeError`) and exist so a deployment check, or a caller that must verify the same proof again, does not have to read a private attribute. They return the live objects, not copies: they confer no new authority, but anyone holding a reference can call them, so treat them as you treat the gate itself.
+
 ## Optional CNS integration
 
 The [CNS integration contract](docs/CNS_INTEGRATION.md) documents the optional ALPHA and OMEGA result adapters. The CNS package remains a caller-supplied optional dependency; Enforcer does not add a hard dependency or treat CNS gate results as authorization grants.
