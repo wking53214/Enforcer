@@ -46,7 +46,7 @@ consumer or a complete CNS gate chain exists in this repository. The OMEGA
 observer and gate must be connected to a real consumer and independently
 observed outcome before making path-coverage or outcome-integrity claims.
 
-CI runs the CNS tests in a `cns` job that installs CNS tag v3.0.0 (commit `31cb6f568219ef62cf3748701c895aa086abf1b8`) and
+CI runs the CNS tests in a `cns` job that installs CNS tag v4.0.0 (commit `eabe6c72d71557b6327b80b42b0afab572acce80`) and
 sets `ENFORCER_REQUIRE_CNS=1`, so a missing `cns` fails the run and those tests
 cannot skip; the job also fails if any test is skipped. Standard-library-only
 local runs, without CNS and without the variable, still skip them.
