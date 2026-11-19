@@ -1,10 +1,22 @@
 # ≡TACK Enforcer
 
-**Status: 0.1.0 prototype — not production-ready and not the final One Ring architecture.**
+**Status: prototype, version 0.1.2 in `pyproject.toml` (this line said 0.1.0): not production-ready and not the final One Ring architecture.**
 
 Enforcer is a small, fail-closed authorization-gate prototype. It tests one narrow property needed by Project One Ring: a consequential action callback should not be invoked unless an external verifier authenticates a grant bound to the exact versioned action envelope, a trusted revalidator confirms current status, and the grant is current and unused.
 
 This repository does **not** decide the final One Ring architecture. The constitutional and repository investigation must establish whether this capability belongs here, in an existing repository, or behind an adapter. Treat this code as an inspectable prototype whose value must be proven against real action paths.
+
+## Role Within ≡TACK
+
+- **What it is.** A small authorization gate: it runs a caller's action only if an external verifier authenticates a grant bound to the exact action envelope, a revalidator confirms it is still current, and a replay store records it as used once.
+- **Authority matrix.** Enforcement for the one callback routed through `execute`, plus replay prevention. Authentication and the authority to grant are supplied by adapters the deployer provides (the defaults reject everything). It does not define policy, mint grants, or generate durable evidence beyond the replay record.
+- **Does not own.** Issuing grants, trust roots, identity, policy, or any action path that does not call `execute`.
+- **Depends on.** The standard library for the gate. CNS is an optional, caller-supplied adapter (`docs/CNS_INTEGRATION.md`). CI's `cns` job installs CNS `v4.0.0`; the suite also passes against `v4.1.0` (EXECUTED 2026-11-18).
+- **Depended on by.** ZTS (checked 2026-11-18). Its optional `enforcer` extra pins this repository at commit `e4d5688` (version 0.1.2, 2 commits behind main; no file under `src/` differs), and its G7 release boundary calls `execute`. ZTS also ships its own adapters for the seams this repository leaves open: an Ed25519 proof verifier, an HTTPS status revalidator and a PostgreSQL replay store. That code lives in ZTS, not here, and this README does not vouch for it. "No real consumer or production verifier was found in this repository" (below) is still true of this repository's own files. No other consumer was looked for.
+- **Verified versus declared.** Verified by the unit tests, which use a test-only fake verifier. Declared only: any production use with a real verifier.
+- **Fail behavior.** Closed by default: the default verifier and revalidator reject every request, and a denied gate does not call the callback. **Bypass:** anything that performs the action without calling `execute`, a permissive verifier, write access to the replay database, and the gap between the revalidation check and the effect (documented TOCTOU window).
+
+EXECUTED 2026-11-18 at `e425c06`, Python 3.13, each run in an environment that held nothing else. The Quick start command below ran 74 tests: 69 passed and 5 were skipped, because those five need CNS. As CI's `cns` job runs it (CNS `v4.0.0` installed and `ENFORCER_REQUIRE_CNS=1`): 74 passed, none skipped, and the same with CNS `v4.1.0`. An earlier line here said "74 passed, 0 failed" (2026-11-15); that count is the with-CNS one. Not run: CI itself, Python 3.11 and 3.12.
 
 ## What is implemented
 
