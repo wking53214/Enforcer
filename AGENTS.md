@@ -2,7 +2,7 @@
 
 ## Project status
 
-Enforcer 0.1.0 is a prototype, not a production security boundary and not the completed One Ring architecture. Read `README.md`, `docs/ARCHITECTURE.md`, `docs/THREAT_MODEL.md`, and `docs/DECISIONS.md` before changing behavior.
+Enforcer (version 0.1.2 in `pyproject.toml`; this line said 0.1.0) is a prototype, not a production security boundary and not the completed One Ring architecture. Read `README.md`, `docs/ARCHITECTURE.md`, `docs/THREAT_MODEL.md`, and `docs/DECISIONS.md` before changing behavior.
 
 ## Non-negotiable behavior
 
