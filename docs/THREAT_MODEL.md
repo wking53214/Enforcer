@@ -1,5 +1,7 @@
 # Threat model — Enforcer 0.1.0
 
+Written for 0.1.0. `pyproject.toml` now says 0.1.2; this model has not been re-read line by line against that version.
+
 ## Assets to protect
 
 - A consequential action callback from being invoked without a grant accepted by the configured verifier.
